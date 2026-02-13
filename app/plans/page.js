@@ -1,6 +1,6 @@
 "use client";
 import { motion } from "framer-motion";
-import { CheckCircle, Crown, Shield, Zap } from "lucide-react";
+import { CheckCircle, Crown, Shield, Zap, Users, Star } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function Plans() {
@@ -8,23 +8,34 @@ export default function Plans() {
   const plans = [
     {
       id: 1,
-      name: "Starter",
+      name: "Student Plan",
       price: 500,
-      limit: "2,500",
+      limit: "2,500", // Max Earning Limit
       icon: Shield,
-      color: "from-gray-700 to-gray-900", // Silver/Dark look
-      border: "border-gray-500",
-      features: ["Daily Ads", "Direct Bonus", "Withdraw Limit: Rs. 2,500"]
+      color: "from-gray-800 to-gray-900",
+      border: "border-gray-600",
+      // Only Referral & VIP features
+      features: [
+        { text: "Direct Bonus: Rs. 150", highlight: true },
+        { text: "Indirect Bonus: Rs. 40", highlight: false },
+        { text: "Withdraw Limit: Rs. 2,500", highlight: false },
+        { text: "Standard Support", highlight: false }
+      ]
     },
     {
       id: 2,
-      name: "Pro Plus",
+      name: "Professional",
       price: 1000,
       limit: "10,000",
       icon: Zap,
-      color: "from-blue-900 to-blue-700", // Blue look
+      color: "from-blue-900 to-blue-800",
       border: "border-blue-500",
-      features: ["Higher Ads Rate", "Team Bonus", "Withdraw Limit: Rs. 10,000"]
+      features: [
+        { text: "Direct Bonus: Rs. 350", highlight: true },
+        { text: "Indirect Bonus: Rs. 80", highlight: false },
+        { text: "Withdraw Limit: Rs. 10,000", highlight: false },
+        { text: "Fast Withdrawal Approval", highlight: true }
+      ]
     },
     {
       id: 3,
@@ -32,22 +43,27 @@ export default function Plans() {
       price: 2000,
       limit: "Unlimited",
       icon: Crown,
-      color: "from-yellow-600 to-yellow-800", // Gold look
-      border: "border-yellow-400",
-      features: ["Max Earnings", "Priority Support", "No Withdraw Limit", "Instant Approval"]
+      color: "from-yellow-700 to-yellow-900",
+      border: "border-yellow-500",
+      features: [
+        { text: "Direct Bonus: Rs. 800", highlight: true },
+        { text: "Indirect Bonus: Rs. 200", highlight: false },
+        { text: "No Withdrawal Limits", highlight: true },
+        { text: "Instant Priority Support", highlight: true },
+        { text: "Premium Badge", highlight: false }
+      ]
     }
   ];
 
   const handleSubscribe = (planName) => {
-    // Yahan baad mein payment gateway lagega
     toast.success(`Request for ${planName} Plan Sent!`);
   };
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-5 pb-24">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">Choose Plan</h1>
-        <p className="text-xs text-gray-400 mt-2">Upgrade to unlock higher earning limits</p>
+        <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">Unlock Earnings</h1>
+        <p className="text-xs text-gray-400 mt-2">One Time Investment - Lifetime Earning</p>
       </div>
 
       <div className="space-y-6">
@@ -59,8 +75,8 @@ export default function Plans() {
             transition={{ delay: index * 0.1 }}
             className={`relative w-full bg-gradient-to-br ${plan.color} border ${plan.border} rounded-2xl p-6 shadow-2xl overflow-hidden`}
           >
-            {/* Background Glow */}
-            <div className="absolute top-[-50%] right-[-50%] w-40 h-40 bg-white/10 blur-[60px] rounded-full" />
+            {/* Glossy Effect */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-[40px] rounded-full" />
 
             <div className="flex justify-between items-start mb-4 relative z-10">
                 <div className="flex items-center gap-3">
@@ -77,27 +93,26 @@ export default function Plans() {
                 </div>
             </div>
 
-            {/* Earning Limit Highlight */}
-            <div className="bg-black/30 rounded-lg p-3 mb-4 border border-white/5 text-center">
-                <p className="text-xs text-gray-300">Earning Limit</p>
-                <p className="text-lg font-bold text-green-400">Rs. {plan.limit}</p>
-            </div>
-
-            {/* Features */}
-            <div className="space-y-2 mb-6">
+            {/* Features List */}
+            <div className="space-y-3 mb-6 bg-black/20 p-4 rounded-xl border border-white/5">
                 {plan.features.map((feature, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                        <CheckCircle className="text-green-400 w-4 h-4" />
-                        <span className="text-xs text-gray-200">{feature}</span>
+                    <div key={i} className="flex items-center gap-3">
+                        {feature.highlight ? 
+                            <Star className="text-yellow-400 w-4 h-4 fill-yellow-400" /> : 
+                            <CheckCircle className="text-green-400 w-4 h-4" />
+                        }
+                        <span className={`text-xs ${feature.highlight ? "text-white font-bold" : "text-gray-300"}`}>
+                            {feature.text}
+                        </span>
                     </div>
                 ))}
             </div>
 
             <button 
                 onClick={() => handleSubscribe(plan.name)}
-                className="w-full py-3 bg-white text-black font-bold rounded-xl shadow-lg hover:bg-gray-200 transition-all text-sm"
+                className="w-full py-3 bg-white text-black font-bold rounded-xl shadow-lg hover:scale-[1.02] transition-all text-sm flex items-center justify-center gap-2"
             >
-                Activate {plan.name}
+                Activate Now <Users className="w-4 h-4" />
             </button>
 
           </motion.div>
