@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Mail, User, Lock, Loader2, ShieldCheck, Send } from "lucide-react";
+import { Mail, User, Lock, Loader2, ShieldCheck, Send, CheckCircle, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -18,12 +18,62 @@ export default function Signup() {
     username: "", 
     email: "", 
     password: "",
-    code: "" // Code ab yahan save hoga
+    code: "" 
   });
+
+  // Check States
+  const [usernameStatus, setUsernameStatus] = useState(null); // null, 'checking', 'available', 'taken'
+  const [emailStatus, setEmailStatus] = useState(null); // null, 'checking', 'available', 'taken'
+
+  // --- LIVE CHECK FUNCTION ---
+  const checkAvailability = async (field, value) => {
+    if (!value) return;
+    
+    // Set Status to Checking
+    if (field === "username") setUsernameStatus("checking");
+    if (field === "email") setEmailStatus("checking");
+
+    try {
+      const res = await fetch("/api/auth/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field, value }),
+      });
+      const data = await res.json();
+
+      if (field === "username") {
+        setUsernameStatus(data.exists ? "taken" : "available");
+      }
+      if (field === "email") {
+        setEmailStatus(data.exists ? "taken" : "available");
+      }
+    } catch (error) {
+      console.error("Check failed", error);
+    }
+  };
+
+  // Debounce (Taake har lafz pe check na kare, rukne ke baad kare)
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (formData.username.length > 2) checkAvailability("username", formData.username);
+    }, 500);
+    return () => clearTimeout(delayDebounceFn);
+  }, [formData.username]);
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (formData.email.includes("@") && formData.email.includes(".")) {
+        checkAvailability("email", formData.email);
+      }
+    }, 500);
+    return () => clearTimeout(delayDebounceFn);
+  }, [formData.email]);
+
 
   // Send Code Function
   const handleSendCode = async () => {
     if (!formData.email) return toast.error("Please enter email first!");
+    if (emailStatus === "taken") return toast.error("This email is already registered!");
     if (timer > 0) return toast.error(`Wait ${timer}s before resending`);
     
     const toastId = toast.loading("Sending Code...");
@@ -39,7 +89,6 @@ export default function Signup() {
         toast.success("Code Sent to Email!", { id: toastId });
         setCodeSent(true);
         setTimer(60);
-        // Countdown Timer Logic
         const interval = setInterval(() => {
           setTimer((prev) => {
             if (prev <= 1) clearInterval(interval);
@@ -57,6 +106,8 @@ export default function Signup() {
   // Register Function
   const handleSignup = async (e) => {
     e.preventDefault();
+    if (usernameStatus === "taken") return toast.error("Please choose a different username");
+    if (emailStatus === "taken") return toast.error("Email already exists");
     if (!codeSent) return toast.error("Please verify email first!");
     if (!formData.code) return toast.error("Please enter verification code!");
 
@@ -115,27 +166,69 @@ export default function Signup() {
             <input type="text" placeholder="Full Name" required className="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm focus:border-purple-500 outline-none transition-all" onChange={(e) => setFormData({...formData, name: e.target.value})} />
           </div>
 
-          {/* Username */}
+          {/* Username LIVE CHECK */}
           <div className="relative group">
             <User className="absolute left-3 top-3.5 h-5 w-5 text-gray-500" />
-            <input type="text" placeholder="Username" required className="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm focus:border-purple-500 outline-none transition-all" onChange={(e) => setFormData({...formData, username: e.target.value})} />
+            <input 
+              type="text" 
+              placeholder="Username" 
+              required 
+              className={`w-full bg-black/40 border rounded-xl py-3 pl-10 pr-10 text-sm outline-none transition-all
+                ${usernameStatus === 'taken' ? 'border-red-500 focus:border-red-500' : 
+                  usernameStatus === 'available' ? 'border-green-500 focus:border-green-500' : 'border-white/10 focus:border-purple-500'}
+              `}
+              onChange={(e) => setFormData({...formData, username: e.target.value})} 
+            />
+            {/* Icons for Status */}
+            <div className="absolute right-3 top-3.5">
+              {usernameStatus === 'checking' && <Loader2 className="animate-spin h-5 w-5 text-gray-400" />}
+              {usernameStatus === 'available' && <CheckCircle className="h-5 w-5 text-green-500" />}
+              {usernameStatus === 'taken' && <XCircle className="h-5 w-5 text-red-500" />}
+            </div>
+            {usernameStatus === 'taken' && <p className="text-xs text-red-500 mt-1 ml-2">Username already exists!</p>}
           </div>
 
-          {/* Email + Send Button */}
-          <div className="relative group flex gap-2">
-            <div className="relative w-full">
-                <Mail className="absolute left-3 top-3.5 h-5 w-5 text-gray-500" />
-                <input type="email" placeholder="Email Address" required disabled={codeSent} className="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm focus:border-purple-500 outline-none transition-all" onChange={(e) => setFormData({...formData, email: e.target.value})} />
+          {/* Email LIVE CHECK + Editable Logic */}
+          <div className="relative group">
+            <div className="relative w-full flex items-center">
+                <Mail className="absolute left-3 h-5 w-5 text-gray-500 z-10" />
+                <input 
+                  type="email" 
+                  placeholder="Email Address" 
+                  required 
+                  // No "disabled" attribute here so you can edit anytime
+                  className={`w-full bg-black/40 border rounded-xl py-3 pl-10 pr-16 text-sm outline-none transition-all
+                    ${emailStatus === 'taken' ? 'border-red-500 focus:border-red-500' : 
+                      emailStatus === 'available' ? 'border-green-500 focus:border-green-500' : 'border-white/10 focus:border-purple-500'}
+                  `}
+                  onChange={(e) => {
+                    setFormData({...formData, email: e.target.value});
+                    setCodeSent(false); // Reset code sent status on edit
+                    setTimer(0);        // Reset timer
+                  }} 
+                />
+                
+                {/* Send Button logic */}
+                <div className="absolute right-1 top-1 bottom-1 flex items-center gap-1">
+                  {emailStatus === 'checking' && <Loader2 className="animate-spin h-4 w-4 text-gray-400 mr-2" />}
+                  
+                  {/* Show Send button only if Available & Not Sent */}
+                  {emailStatus !== 'taken' && !codeSent && (
+                     <button 
+                        type="button" 
+                        onClick={handleSendCode} 
+                        disabled={timer > 0 || emailStatus !== 'available'}
+                        className="bg-white/10 hover:bg-purple-600/50 border border-white/10 rounded-lg px-3 py-1.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {timer > 0 ? <span className="text-xs font-mono">{timer}s</span> : <Send className="w-4 h-4 text-purple-400" />}
+                     </button>
+                  )}
+
+                  {/* Show Green Check if Code Sent */}
+                  {codeSent && <CheckCircle className="w-5 h-5 text-green-500 mr-2" />}
+                </div>
             </div>
-            
-            <button 
-                type="button" 
-                onClick={handleSendCode} 
-                disabled={timer > 0 || codeSent}
-                className="bg-white/10 hover:bg-purple-600/50 border border-white/10 rounded-xl px-4 flex items-center justify-center transition-all"
-            >
-                {timer > 0 ? <span className="text-xs font-mono">{timer}s</span> : <Send className="w-5 h-5 text-purple-400" />}
-            </button>
+            {emailStatus === 'taken' && <p className="text-xs text-red-500 mt-1 ml-2">Account with this email already exists!</p>}
           </div>
 
           {/* NEW: Code Input (Only shows after sending email) */}
@@ -164,8 +257,8 @@ export default function Signup() {
           <motion.button 
             whileHover={{ scale: 1.02 }} 
             whileTap={{ scale: 0.98 }} 
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white font-bold py-3.5 rounded-xl shadow-lg mt-4 disabled:opacity-50"
+            disabled={loading || usernameStatus === 'taken' || emailStatus === 'taken'}
+            className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white font-bold py-3.5 rounded-xl shadow-lg mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? <Loader2 className="animate-spin mx-auto"/> : "Create Account"}
           </motion.button>
