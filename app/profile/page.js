@@ -2,27 +2,68 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { User, LogOut, ChevronRight, Wallet, History, Phone, CreditCard, ArrowLeft, CheckCircle, Save, Loader2, AlertCircle } from "lucide-react";
+import { User, LogOut, ChevronRight, Wallet, History, Phone, CreditCard, ArrowLeft, CheckCircle, Save, Loader2, AlertCircle, Camera, Mail } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function Profile() {
   const router = useRouter();
+  
+  // --- STATES ---
   const [user, setUser] = useState(null);
   const [activeView, setActiveView] = useState("main"); 
   const [selectedMethod, setSelectedMethod] = useState(null);
-  
+  const [loadingData, setLoadingData] = useState(true);
+
+  // Edit Profile State
+  const [editForm, setEditForm] = useState({ name: "", username: "", email: "" });
+  const [updating, setUpdating] = useState(false);
+
   // Withdraw Form State
   const [withdrawForm, setWithdrawForm] = useState({ title: "", number: "", amount: "" });
-  const [loading, setLoading] = useState(false);
+  const [loadingWithdraw, setLoadingWithdraw] = useState(false);
   
   // History State
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  // --- 1. FETCH USER DATA FROM DB (Master API) ---
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) setUser(JSON.parse(storedUser));
+    const fetchUserData = async () => {
+      const storedUser = localStorage.getItem("user");
+      if (!storedUser) {
+        router.push("/login");
+        return;
+      }
+      
+      const localData = JSON.parse(storedUser);
+      
+      try {
+        // Database se fresh data mangwao
+        const res = await fetch(`/api/user/profile?email=${localData.email}`);
+        const data = await res.json();
+        
+        if (data.success) {
+          setUser(data.user);
+          setEditForm({ 
+            name: data.user.name, 
+            username: data.user.username, 
+            email: data.user.email 
+          });
+          // LocalStorage ko bhi update kar do taake sync rahe
+          localStorage.setItem("user", JSON.stringify(data.user));
+        }
+      } catch (error) {
+        console.error("Failed to load profile");
+      } finally {
+        setLoadingData(false);
+      }
+    };
 
+    fetchUserData();
+  }, []);
+
+  // --- 2. BACK BUTTON HANDLER (Android Style) ---
+  useEffect(() => {
     const handleBack = () => {
         if (activeView !== "main") {
             setActiveView("main"); 
@@ -38,7 +79,7 @@ export default function Profile() {
     };
   }, [activeView]);
 
-  // Fetch History when view changes to 'history'
+  // --- 3. FETCH HISTORY ---
   useEffect(() => {
     if (activeView === "history" && user) {
         fetchHistory();
@@ -58,6 +99,7 @@ export default function Profile() {
       }
   };
 
+  // --- 4. HANDLE WITHDRAW SUBMIT ---
   const handleWithdrawSubmit = async () => {
       if (!selectedMethod || !withdrawForm.title || !withdrawForm.number || !withdrawForm.amount) {
           return toast.error("Please fill all fields");
@@ -65,7 +107,7 @@ export default function Profile() {
       if (Number(withdrawForm.amount) < 500) return toast.error("Minimum withdraw is Rs. 500");
       if (Number(withdrawForm.amount) > user.balance) return toast.error("Insufficient Balance");
 
-      setLoading(true);
+      setLoadingWithdraw(true);
       try {
           const res = await fetch("/api/withdraw", {
               method: "POST",
@@ -82,14 +124,44 @@ export default function Profile() {
           const data = await res.json();
           if (res.ok) {
               toast.success("Withdrawal Requested!");
-              setActiveView("history"); // Go to history to see status
+              setActiveView("history"); 
           } else {
               toast.error(data.message);
           }
       } catch (error) {
           toast.error("Request Failed");
       } finally {
-          setLoading(false);
+          setLoadingWithdraw(false);
+      }
+  };
+
+  // --- 5. HANDLE PROFILE UPDATE ---
+  const handleUpdateProfile = async () => {
+      setUpdating(true);
+      try {
+          const res = await fetch("/api/user/profile", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                  currentEmail: user.email, // Identity ke liye
+                  newName: editForm.name,
+                  newUsername: editForm.username,
+                  newEmail: editForm.email
+              })
+          });
+
+          const data = await res.json();
+          if (data.success) {
+              toast.success("Profile Updated Successfully!");
+              setUser(data.user); // Update UI
+              localStorage.setItem("user", JSON.stringify(data.user)); // Update LocalStorage
+          } else {
+              toast.error(data.message);
+          }
+      } catch (error) {
+          toast.error("Update Failed");
+      } finally {
+          setUpdating(false);
       }
   };
 
@@ -98,9 +170,11 @@ export default function Profile() {
     router.push("/login");
   };
 
-  if (!user) return null;
+  if (loadingData || !user) return <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center"><Loader2 className="animate-spin text-purple-500" /></div>;
 
-  // --- 1. WITHDRAW VIEW ---
+  // ================= VIEWS =================
+
+  // --- A. WITHDRAW VIEW ---
   if (activeView === "withdraw") {
       const methods = [
           { id: "EasyPaisa", name: "EasyPaisa", logo: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSLEe3uWvU4m4PPvRnPmxLzgMGLnO2EUREMVLIXyDGNEQ&s=10" },
@@ -165,11 +239,11 @@ export default function Profile() {
                         />
                     </div>
                     <button 
-                        disabled={loading}
+                        disabled={loadingWithdraw}
                         onClick={handleWithdrawSubmit} 
                         className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl font-bold shadow-lg mt-4 flex items-center justify-center gap-2"
                     >
-                        {loading ? <Loader2 className="animate-spin" /> : "Confirm Withdraw"}
+                        {loadingWithdraw ? <Loader2 className="animate-spin" /> : "Confirm Withdraw"}
                     </button>
                 </motion.div>
             )}
@@ -177,7 +251,7 @@ export default function Profile() {
       );
   }
 
-  // --- 2. WITHDRAW HISTORY VIEW (Database Connected) ---
+  // --- B. WITHDRAW HISTORY VIEW ---
   if (activeView === "history") return (
       <div className="min-h-screen bg-[#0a0a0a] text-white p-5 pb-24">
           <button onClick={() => setActiveView("main")} className="flex items-center gap-2 text-gray-400 mb-6"><ArrowLeft className="w-4 h-4" /> Back</button>
@@ -210,7 +284,6 @@ export default function Profile() {
                               <p className="text-xs text-gray-500">{item.accountNumber}</p>
                               <p className="text-lg font-bold">Rs. {item.amount}</p>
                           </div>
-                          {/* Reason if Rejected */}
                           {item.status === 'rejected' && item.adminMessage && (
                               <div className="mt-2 pt-2 border-t border-white/5 flex items-start gap-2">
                                   <AlertCircle className="w-3 h-3 text-red-400 mt-0.5" />
@@ -224,7 +297,7 @@ export default function Profile() {
       </div>
   );
 
-  // --- 3. EARNING DETAILS VIEW (Dummy for now) ---
+  // --- C. EARNING DETAILS VIEW (Dummy for now) ---
   if (activeView === "earnings") return (
       <div className="min-h-screen bg-[#0a0a0a] text-white p-5 pb-24">
           <button onClick={() => setActiveView("main")} className="flex items-center gap-2 text-gray-400 mb-6"><ArrowLeft className="w-4 h-4" /> Back</button>
@@ -237,26 +310,71 @@ export default function Profile() {
                 </div>
                 <span className="text-green-400 font-bold font-mono">+Rs. 0</span>
              </div>
-             {/* Note: Earning bhi DB se laani hogi jab system banega */}
+             {/* Future: Map through earningHistory from user object */}
           </div>
       </div>
   );
 
-  // --- 4. EDIT PROFILE VIEW ---
+  // --- D. EDIT PROFILE VIEW (Working) ---
   if (activeView === "edit") return (
       <div className="min-h-screen bg-[#0a0a0a] text-white p-5 pb-24">
           <button onClick={() => setActiveView("main")} className="flex items-center gap-2 text-gray-400 mb-6"><ArrowLeft className="w-4 h-4" /> Back</button>
           <h1 className="text-2xl font-bold mb-6">Edit Profile</h1>
-          <form className="space-y-4">
-              <input type="text" defaultValue={user.name} className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-sm" />
-              <input type="text" defaultValue={user.username} disabled className="w-full bg-black/50 border border-white/5 p-4 rounded-xl text-sm text-gray-500 cursor-not-allowed" />
-              <input type="email" defaultValue={user.email} className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-sm" />
-              <button type="button" onClick={() => toast.success("Feature coming soon!")} className="w-full py-4 bg-purple-600 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2"><Save className="w-4 h-4" /> Save Changes</button>
-          </form>
+          
+          <div className="flex flex-col items-center mb-8 relative">
+              <div className="w-24 h-24 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-4xl font-bold border-4 border-[#0a0a0a] shadow-xl overflow-hidden">
+                  {user.profilePic ? (
+                      <img src={user.profilePic} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                      user.name[0]
+                  )}
+              </div>
+              <button className="absolute bottom-0 right-[35%] bg-white text-black p-2 rounded-full shadow-lg hover:bg-gray-200">
+                  <Camera className="w-4 h-4" />
+              </button>
+          </div>
+
+          <div className="space-y-4">
+              <div>
+                  <label className="text-xs text-gray-500 ml-2">Full Name</label>
+                  <input 
+                    type="text" 
+                    value={editForm.name} 
+                    onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                    className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-sm outline-none focus:border-purple-500 transition-all" 
+                   />
+              </div>
+              <div>
+                  <label className="text-xs text-gray-500 ml-2">Username</label>
+                  <input 
+                    type="text" 
+                    value={editForm.username} 
+                    onChange={(e) => setEditForm({...editForm, username: e.target.value})}
+                    className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-sm outline-none focus:border-purple-500 transition-all" 
+                   />
+              </div>
+              <div>
+                  <label className="text-xs text-gray-500 ml-2">Email Address</label>
+                  <input 
+                    type="email" 
+                    value={editForm.email} 
+                    onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+                    className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-sm outline-none focus:border-purple-500 transition-all" 
+                   />
+              </div>
+              
+              <button 
+                disabled={updating}
+                onClick={handleUpdateProfile} 
+                className="w-full py-4 bg-purple-600 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                  {updating ? <Loader2 className="animate-spin" /> : <><Save className="w-4 h-4" /> Save Changes</>}
+              </button>
+          </div>
       </div>
   );
 
-  // --- 5. CONTACT VIEW ---
+  // --- E. CONTACT VIEW ---
   if (activeView === "contact") return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-5 pb-24 flex flex-col items-center">
          <button onClick={() => setActiveView("main")} className="self-start flex items-center gap-2 text-gray-400 mb-10"><ArrowLeft className="w-4 h-4" /> Back</button>
@@ -272,8 +390,12 @@ export default function Profile() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-5 pb-24">
       <div className="flex items-center gap-4 mb-8 bg-white/5 p-4 rounded-2xl border border-white/5">
-        <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-2xl font-bold shadow-lg relative">
-            {user.name[0]}
+        <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-2xl font-bold shadow-lg relative overflow-hidden">
+             {user.profilePic ? (
+                  <img src={user.profilePic} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                  user.name[0]
+              )}
             <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-[#1a1a1a]"></div>
         </div>
         <div className="flex-1">
