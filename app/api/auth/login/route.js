@@ -18,14 +18,21 @@ export async function POST(req) {
       return NextResponse.json({ message: "Invalid email or password" }, { status: 400 });
     }
 
-    // Note: For advanced security, we usually use JWT tokens. 
-    // Here we return user data to save in LocalStorage for speed.
+    // UPDATED RESPONSE (Email added)
     return NextResponse.json({ 
       message: "Login Successful", 
-      user: { name: user.name, username: user.username, balance: user.balance, referrals: user.referrals } 
+      user: { 
+        id: user._id,       // ID bhi bhej dein
+        name: user.name, 
+        username: user.username, 
+        email: user.email,  // <--- Ye line lazmi hai
+        balance: user.balance, 
+        referrals: user.referrals,
+        isPlanActive: user.isPlanActive || false // Plan status bhi
+      } 
     }, { status: 200 });
 
   } catch (error) {
     return NextResponse.json({ message: "Login failed" }, { status: 500 });
   }
-}
+        }
