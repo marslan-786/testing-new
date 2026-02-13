@@ -1,20 +1,32 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Users, DollarSign, Activity, AlertCircle, Search, LogIn, Ban, Check, X, Eye } from "lucide-react";
+import { 
+  Users, DollarSign, Activity, AlertCircle, Search, LogIn, Ban, 
+  Check, X, Eye, Menu, LogOut, Settings, BarChart, CreditCard, Layers 
+} from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("stats"); // stats, users, plans, withdraws
+  
+  // Tabs: 'users', 'withdraws', 'plans', 'stats'
+  const [activeTab, setActiveTab] = useState("users"); 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   
-  // Modal States
-  const [selectedItem, setSelectedItem] = useState(null);
+  // Search State
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Modals
+  const [rejectModal, setRejectModal] = useState({ show: false, id: null, type: "" });
   const [rejectReason, setRejectReason] = useState("");
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [actionType, setActionType] = useState(""); // 'plan' or 'withdraw'
+  const [viewModal, setViewModal] = useState(null); // For viewing details
+  const [settingsModal, setSettingsModal] = useState(false); // Change Pass
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Settings Form
+  const [creds, setCreds] = useState({ username: "", password: "" });
 
   useEffect(() => {
     const isAdmin = localStorage.getItem("adminAuth");
@@ -37,9 +49,11 @@ export default function AdminDashboard() {
   // --- ACTIONS ---
 
   const handleLoginAsUser = (user) => {
+    // Ye user object localStorage mein save karega aur wahan redirect karega
     localStorage.setItem("user", JSON.stringify(user));
     toast.success(`Logged in as ${user.username}`);
-    window.open("/", "_blank"); // Open user dashboard in new tab
+    // New tab mein open karein taake admin panel band na ho
+    window.open("/", "_blank"); 
   };
 
   const handleAction = async (type, id, action, reason = "") => {
@@ -52,9 +66,8 @@ export default function AdminDashboard() {
       });
       if (res.ok) {
         toast.success("Done!", { id: toastId });
-        setShowRejectModal(false);
+        setRejectModal({ show: false, id: null, type: "" });
         setRejectReason("");
-        setSelectedItem(null);
         fetchData(); // Refresh Data
       } else {
         toast.error("Failed", { id: toastId });
@@ -64,157 +77,230 @@ export default function AdminDashboard() {
     }
   };
 
-  const openRejectModal = (item, type) => {
-    setSelectedItem(item);
-    setActionType(type);
-    setShowRejectModal(true);
+  const updateSettings = async () => {
+      if(!creds.username || !creds.password) return toast.error("Fill all fields");
+      const res = await fetch("/api/admin/settings", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ newUsername: creds.username, newPassword: creds.password })
+      });
+      if(res.ok) {
+          toast.success("Admin Updated! Please login again.");
+          localStorage.removeItem("adminAuth");
+          router.push("/admin/login");
+      }
   };
 
   if (loading) return <div className="min-h-screen bg-black text-white flex items-center justify-center">Loading Admin Panel...</div>;
 
+  // Filter Users Search
+  const filteredUsers = data.users.filter(u => 
+    u.username.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    u.email.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
-    <div className="min-h-screen bg-[#111] text-white flex">
+    <div className="min-h-screen bg-[#0a0a0a] text-white pb-24 relative">
       
-      {/* Sidebar */}
-      <div className="w-64 bg-black border-r border-white/10 p-5 hidden md:block">
-        <h1 className="text-2xl font-bold text-red-500 mb-10">STOREX ADMIN</h1>
-        <nav className="space-y-2">
-            <button onClick={() => setActiveTab("stats")} className={`w-full text-left p-3 rounded ${activeTab === 'stats' ? 'bg-red-600' : 'hover:bg-white/5'}`}>Dashboard Stats</button>
-            <button onClick={() => setActiveTab("users")} className={`w-full text-left p-3 rounded ${activeTab === 'users' ? 'bg-red-600' : 'hover:bg-white/5'}`}>All Members ({data.stats.totalUsers})</button>
-            <button onClick={() => setActiveTab("plans")} className={`w-full text-left p-3 rounded flex justify-between ${activeTab === 'plans' ? 'bg-red-600' : 'hover:bg-white/5'}`}>
-                Plan Requests {data.planRequests.length > 0 && <span className="bg-white text-red-600 px-2 rounded-full text-xs font-bold">{data.planRequests.length}</span>}
-            </button>
-            <button onClick={() => setActiveTab("withdraws")} className={`w-full text-left p-3 rounded flex justify-between ${activeTab === 'withdraws' ? 'bg-red-600' : 'hover:bg-white/5'}`}>
-                Withdraw Requests {data.withdrawRequests.length > 0 && <span className="bg-white text-red-600 px-2 rounded-full text-xs font-bold">{data.withdrawRequests.length}</span>}
-            </button>
-        </nav>
+      {/* --- TOP BAR --- */}
+      <div className="bg-[#111] p-4 border-b border-white/10 flex justify-between items-center sticky top-0 z-50">
+          <h1 className="text-xl font-bold text-red-500">STOREX ADMIN</h1>
+          <button onClick={() => setMenuOpen(!menuOpen)}><Menu className="text-white" /></button>
+          
+          {/* Dropdown Menu */}
+          {menuOpen && (
+              <div className="absolute top-14 right-4 bg-[#222] border border-white/10 rounded-xl shadow-2xl p-2 w-48 z-50">
+                  <button onClick={() => setSettingsModal(true)} className="w-full text-left px-4 py-2 hover:bg-white/10 rounded flex items-center gap-2 text-sm"><Settings className="w-4 h-4"/> Settings</button>
+                  <button onClick={() => { localStorage.removeItem("adminAuth"); router.push("/admin/login"); }} className="w-full text-left px-4 py-2 hover:bg-white/10 rounded flex items-center gap-2 text-red-400 text-sm"><LogOut className="w-4 h-4"/> Logout</button>
+              </div>
+          )}
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 p-8 overflow-y-auto">
+      {/* --- CONTENT AREA --- */}
+      <div className="p-4">
         
-        {/* --- STATS TAB --- */}
-        {activeTab === "stats" && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <StatCard title="Total Users" value={data.stats.totalUsers} icon={Users} color="bg-blue-600" />
-                <StatCard title="Total Investment" value={`Rs ${data.stats.totalInvestment}`} icon={DollarSign} color="bg-green-600" />
-                <StatCard title="Total Withdrawn" value={`Rs ${data.stats.totalWithdrawn}`} icon={Activity} color="bg-orange-600" />
-                <StatCard title="User Liabilities" value={`Rs ${data.stats.totalUserBalance}`} icon={AlertCircle} color="bg-purple-600" />
-            </div>
-        )}
-
-        {/* --- USERS TAB --- */}
+        {/* TAB 1: ALL MEMBERS */}
         {activeTab === "users" && (
             <div>
-                <h2 className="text-2xl font-bold mb-6">All Members</h2>
-                <div className="bg-black border border-white/10 rounded-xl overflow-hidden">
-                    <table className="w-full text-left text-sm text-gray-400">
-                        <thead className="bg-white/5 text-gray-200">
-                            <tr>
-                                <th className="p-4">User</th>
-                                <th className="p-4">Balance</th>
-                                <th className="p-4">Plan</th>
-                                <th className="p-4">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {data.users.map(user => (
-                                <tr key={user._id} className="border-b border-white/5 hover:bg-white/5">
-                                    <td className="p-4">
-                                        <div className="font-bold text-white">{user.name}</div>
-                                        <div className="text-xs">@{user.username}</div>
-                                    </td>
-                                    <td className="p-4 text-green-400 font-mono font-bold">{user.balance}</td>
-                                    <td className="p-4">{user.plan.isActive ? <span className="text-green-400">{user.plan.planName}</span> : <span className="text-red-400">Inactive</span>}</td>
-                                    <td className="p-4 flex gap-2">
-                                        <button onClick={() => handleLoginAsUser(user)} className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded border border-blue-500/50 flex items-center gap-1 hover:bg-blue-600 hover:text-white transition"><LogIn className="w-3 h-3" /> Login As</button>
-                                        <button className="bg-red-600/20 text-red-400 px-3 py-1 rounded border border-red-500/50 flex items-center gap-1 hover:bg-red-600 hover:text-white transition"><Ban className="w-3 h-3" /> Suspend</button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold">Total Users: <span className="text-blue-400">{data.stats.totalUsers}</span></h2>
                 </div>
-            </div>
-        )}
+                {/* Search Bar */}
+                <div className="bg-white/5 p-2 rounded-xl flex items-center gap-2 mb-4 border border-white/10">
+                    <Search className="text-gray-400 w-5 h-5 ml-2" />
+                    <input 
+                        type="text" placeholder="Search by name, username, email..." 
+                        className="bg-transparent w-full outline-none text-sm p-1"
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
 
-        {/* --- PLAN REQUESTS TAB --- */}
-        {activeTab === "plans" && (
-            <div>
-                <h2 className="text-2xl font-bold mb-6">Pending Plan Approvals</h2>
-                <div className="grid gap-4">
-                    {data.planRequests.map(req => (
-                        <div key={req._id} className="bg-white/5 p-6 rounded-xl border border-white/10 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div className="space-y-3">
+                    {filteredUsers.map(user => (
+                        <div key={user._id} className="bg-white/5 p-4 rounded-xl border border-white/5 flex justify-between items-center">
                             <div>
-                                <h3 className="text-xl font-bold text-white">{req.planName} (Rs {req.price})</h3>
-                                <p className="text-gray-400 text-sm">User: {req.username} ({req.userId})</p>
-                                <p className="text-gray-500 text-xs mt-1">TrxID: <span className="text-yellow-400 font-mono">{req.trxId}</span></p>
+                                <h3 className="font-bold">{user.name}</h3>
+                                <p className="text-xs text-gray-400">@{user.username}</p>
+                                <p className="text-[10px] text-gray-500">{user.email}</p>
+                                <div className="mt-1 flex gap-2">
+                                    <span className="text-xs bg-green-900 text-green-400 px-1 rounded">Bal: {user.balance}</span>
+                                    <span className={`text-xs px-1 rounded ${user.plan.isActive ? 'bg-blue-900 text-blue-400' : 'bg-red-900 text-red-400'}`}>
+                                        {user.plan.isActive ? user.plan.planName : "No Plan"}
+                                    </span>
+                                </div>
                             </div>
-                            <div className="flex gap-3">
-                                {/* Proof Button (Normally opens modal/image) */}
-                                <button className="bg-gray-700 px-4 py-2 rounded font-bold flex items-center gap-2"><Eye className="w-4 h-4" /> View Proof</button>
-                                <button onClick={() => handleAction('plan', req._id, 'approve')} className="bg-green-600 px-4 py-2 rounded font-bold hover:bg-green-500">Approve</button>
-                                <button onClick={() => openRejectModal(req, 'plan')} className="bg-red-600 px-4 py-2 rounded font-bold hover:bg-red-500">Decline</button>
+                            <div className="flex flex-col gap-2">
+                                <button onClick={() => handleLoginAsUser(user)} className="bg-blue-600 px-3 py-1 rounded text-xs font-bold flex items-center gap-1"><LogIn className="w-3 h-3"/> Login</button>
+                                {/* Suspend Logic (Just UI for now) */}
+                                <button className="bg-red-600/50 px-3 py-1 rounded text-xs font-bold flex items-center gap-1 border border-red-500"><Ban className="w-3 h-3"/> Block</button>
                             </div>
                         </div>
                     ))}
-                    {data.planRequests.length === 0 && <p className="text-gray-500 text-center py-10">No pending plan requests.</p>}
                 </div>
             </div>
         )}
 
-        {/* --- WITHDRAW REQUESTS TAB --- */}
+        {/* TAB 2: WITHDRAW REQUESTS */}
         {activeTab === "withdraws" && (
             <div>
-                <h2 className="text-2xl font-bold mb-6">Pending Withdrawals</h2>
-                <div className="grid gap-4">
+                <h2 className="text-xl font-bold mb-4">Withdraw Requests</h2>
+                <div className="space-y-3">
                     {data.withdrawRequests.map(req => (
-                        <div key={req._id} className="bg-white/5 p-6 rounded-xl border border-white/10">
-                            <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 className="text-2xl font-bold text-green-400 font-mono">Rs {req.amount}</h3>
-                                    <p className="text-white font-bold">{req.method} - {req.accountNumber}</p>
-                                    <p className="text-gray-400 text-sm">Title: {req.accountTitle}</p>
-                                    <p className="text-gray-500 text-xs mt-2">Requested by: {req.userId}</p>
-                                </div>
-                                <div className="text-right">
-                                    <button className="text-blue-400 text-xs underline mb-2 block">Check Earning History</button>
-                                </div>
+                        <div key={req._id} className="bg-white/5 p-4 rounded-xl border border-white/10">
+                            <div className="flex justify-between mb-2">
+                                <h3 className="font-bold text-lg text-green-400">Rs {req.amount}</h3>
+                                <span className="bg-yellow-500/20 text-yellow-400 text-xs px-2 py-1 rounded">Pending</span>
                             </div>
-                            <div className="flex gap-3 border-t border-white/10 pt-4">
-                                <button onClick={() => handleAction('withdraw', req._id, 'approve')} className="flex-1 bg-green-600 py-2 rounded font-bold hover:bg-green-500">Approve & Pay</button>
-                                <button onClick={() => openRejectModal(req, 'withdraw')} className="flex-1 bg-red-600 py-2 rounded font-bold hover:bg-red-500">Decline</button>
+                            <div className="bg-black/30 p-2 rounded text-xs mb-3">
+                                <p><span className="text-gray-400">Method:</span> {req.method}</p>
+                                <p><span className="text-gray-400">Account:</span> {req.accountNumber} ({req.accountTitle})</p>
+                                <p><span className="text-gray-400">User ID:</span> {req.userId}</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={() => setViewModal({ type: 'withdraw', data: req })} className="flex-1 bg-gray-700 py-2 rounded text-xs font-bold">View Detail</button>
+                                <button onClick={() => handleAction('withdraw', req._id, 'approve')} className="flex-1 bg-green-600 py-2 rounded text-xs font-bold">Approve</button>
+                                <button onClick={() => setRejectModal({ show: true, id: req._id, type: 'withdraw' })} className="flex-1 bg-red-600 py-2 rounded text-xs font-bold">Decline</button>
                             </div>
                         </div>
                     ))}
-                    {data.withdrawRequests.length === 0 && <p className="text-gray-500 text-center py-10">No pending withdrawals.</p>}
+                    {data.withdrawRequests.length === 0 && <div className="text-center text-gray-500 mt-10">No pending withdrawals</div>}
+                </div>
+            </div>
+        )}
+
+        {/* TAB 3: PLAN REQUESTS */}
+        {activeTab === "plans" && (
+            <div>
+                <h2 className="text-xl font-bold mb-4">Plan Activations</h2>
+                <div className="space-y-3">
+                    {data.planRequests.map(req => (
+                        <div key={req._id} className="bg-white/5 p-4 rounded-xl border border-white/10">
+                            <div className="flex justify-between mb-2">
+                                <h3 className="font-bold text-white">{req.planName}</h3>
+                                <span className="text-blue-400 font-bold">Rs {req.price}</span>
+                            </div>
+                            <div className="bg-black/30 p-2 rounded text-xs mb-3">
+                                <p><span className="text-gray-400">User:</span> {req.username}</p>
+                                <p><span className="text-gray-400">Trx ID:</span> <span className="text-yellow-400">{req.trxId}</span></p>
+                            </div>
+                            <div className="flex gap-2">
+                                {/* Proof Image Viewer */}
+                                <button onClick={() => setViewModal({ type: 'plan', data: req })} className="flex-1 bg-gray-700 py-2 rounded text-xs font-bold flex items-center justify-center gap-1"><Eye className="w-3 h-3"/> Proof</button>
+                                <button onClick={() => handleAction('plan', req._id, 'approve')} className="flex-1 bg-green-600 py-2 rounded text-xs font-bold">Approve</button>
+                                <button onClick={() => setRejectModal({ show: true, id: req._id, type: 'plan' })} className="flex-1 bg-red-600 py-2 rounded text-xs font-bold">Decline</button>
+                            </div>
+                        </div>
+                    ))}
+                    {data.planRequests.length === 0 && <div className="text-center text-gray-500 mt-10">No pending plan requests</div>}
+                </div>
+            </div>
+        )}
+
+        {/* TAB 4: TOTAL DATA (Stats) */}
+        {activeTab === "stats" && (
+            <div>
+                <h2 className="text-xl font-bold mb-6">System Statistics</h2>
+                <div className="grid grid-cols-1 gap-4">
+                    <StatBox title="Total Members" value={data.stats.totalUsers} icon={Users} color="bg-blue-600" />
+                    <StatBox title="Total Withdraw Given" value={`Rs ${data.stats.totalWithdrawn}`} icon={CreditCard} color="bg-orange-600" />
+                    <StatBox title="Total Investment" value={`Rs ${data.stats.totalInvestment}`} icon={DollarSign} color="bg-green-600" />
+                    <StatBox title="All User Balance" value={`Rs ${data.stats.totalUserBalance}`} icon={Activity} color="bg-purple-600" desc="Liability (User ke accounts mein jo paisa hai)" />
                 </div>
             </div>
         )}
 
       </div>
 
-      {/* --- REJECT MODAL --- */}
-      {showRejectModal && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-              <div className="bg-[#1a1a1a] p-6 rounded-2xl border border-white/10 w-full max-w-md">
-                  <h3 className="text-xl font-bold mb-4">Decline Request</h3>
-                  <p className="text-sm text-gray-400 mb-2">Reason for rejection (will be shown to user):</p>
-                  <textarea 
-                    className="w-full bg-black/50 border border-white/10 rounded p-3 text-white outline-none focus:border-red-500"
-                    rows="4"
-                    placeholder="e.g. Invalid Transaction ID / Account Details Incorrect"
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                  ></textarea>
-                  <div className="flex gap-3 mt-4">
-                      <button onClick={() => setShowRejectModal(false)} className="flex-1 bg-gray-700 py-2 rounded font-bold">Cancel</button>
-                      <button 
-                        onClick={() => handleAction(actionType, selectedItem._id, 'reject', rejectReason)}
-                        className="flex-1 bg-red-600 py-2 rounded font-bold hover:bg-red-500"
-                      >
-                          Confirm Decline
-                      </button>
+      {/* --- BOTTOM NAVIGATION (Fixed) --- */}
+      <div className="fixed bottom-0 left-0 right-0 bg-[#151515] border-t border-white/10 p-3 z-40">
+        <div className="flex justify-around items-center max-w-md mx-auto">
+            <NavBtn active={activeTab==='users'} onClick={()=>setActiveTab('users')} icon={Users} label="Users" count={null} />
+            <NavBtn active={activeTab==='withdraws'} onClick={()=>setActiveTab('withdraws')} icon={CreditCard} label="Withdraw" count={data.withdrawRequests.length} />
+            <NavBtn active={activeTab==='plans'} onClick={()=>setActiveTab('plans')} icon={Layers} label="Plans" count={data.planRequests.length} />
+            <NavBtn active={activeTab==='stats'} onClick={()=>setActiveTab('stats')} icon={BarChart} label="Data" count={null} />
+        </div>
+      </div>
+
+      {/* --- MODALS --- */}
+      
+      {/* 1. REJECT MODAL */}
+      {rejectModal.show && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-6">
+              <div className="bg-[#1a1a1a] p-6 rounded-2xl w-full max-w-sm border border-white/20">
+                  <h3 className="font-bold mb-2 text-red-500">Decline Request</h3>
+                  <textarea className="w-full bg-black/50 p-3 rounded border border-white/10 text-white mb-4" placeholder="Reason (e.g. Invalid TrxID)" onChange={(e)=>setRejectReason(e.target.value)}></textarea>
+                  <div className="flex gap-2">
+                      <button onClick={()=>setRejectModal({show:false})} className="flex-1 bg-gray-700 py-2 rounded">Cancel</button>
+                      <button onClick={()=>handleAction(rejectModal.type, rejectModal.id, 'reject', rejectReason)} className="flex-1 bg-red-600 py-2 rounded">Confirm</button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* 2. VIEW DETAILS MODAL */}
+      {viewModal && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-6">
+              <div className="bg-[#1a1a1a] p-6 rounded-2xl w-full max-w-sm border border-white/20 relative">
+                  <button onClick={()=>setViewModal(null)} className="absolute top-3 right-3"><X/></button>
+                  <h3 className="font-bold mb-4 text-xl">Request Details</h3>
+                  
+                  <div className="space-y-3 text-sm">
+                      <p><span className="text-gray-400">User:</span> {viewModal.data.username}</p>
+                      <p><span className="text-gray-400">Email:</span> {viewModal.data.userId}</p>
+                      <hr className="border-white/10"/>
+                      {viewModal.type === 'withdraw' ? (
+                          <>
+                            <p><span className="text-gray-400">Bank:</span> {viewModal.data.method}</p>
+                            <p><span className="text-gray-400">Account:</span> {viewModal.data.accountNumber}</p>
+                            <p><span className="text-gray-400">Title:</span> {viewModal.data.accountTitle}</p>
+                            <p className="text-xl font-bold text-center mt-4 text-green-400">Amount: {viewModal.data.amount}</p>
+                          </>
+                      ) : (
+                          <>
+                            <p><span className="text-gray-400">Plan:</span> {viewModal.data.planName}</p>
+                            <p><span className="text-gray-400">Price:</span> {viewModal.data.price}</p>
+                            <p><span className="text-gray-400">TrxID:</span> {viewModal.data.trxId}</p>
+                            <div className="mt-2 bg-black p-2 rounded text-center text-xs text-gray-500">
+                                {viewModal.data.screenshot} <br/> (Image Logic here)
+                            </div>
+                          </>
+                      )}
+                  </div>
+                  <button onClick={()=>handleLoginAsUser({ username: viewModal.data.username, email: viewModal.data.userId })} className="w-full mt-6 bg-blue-600 py-2 rounded font-bold flex items-center justify-center gap-2"><LogIn className="w-4 h-4"/> Login as User</button>
+              </div>
+          </div>
+      )}
+
+      {/* 3. SETTINGS MODAL */}
+      {settingsModal && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-6">
+              <div className="bg-[#1a1a1a] p-6 rounded-2xl w-full max-w-sm border border-white/20">
+                  <h3 className="font-bold mb-4">Admin Settings</h3>
+                  <input type="text" placeholder="New Username" className="w-full bg-black/50 p-3 rounded mb-3 border border-white/10" onChange={(e)=>setCreds({...creds, username: e.target.value})} />
+                  <input type="text" placeholder="New Password" className="w-full bg-black/50 p-3 rounded mb-4 border border-white/10" onChange={(e)=>setCreds({...creds, password: e.target.value})} />
+                  <div className="flex gap-2">
+                      <button onClick={()=>setSettingsModal(false)} className="flex-1 bg-gray-700 py-2 rounded">Cancel</button>
+                      <button onClick={updateSettings} className="flex-1 bg-green-600 py-2 rounded">Update</button>
                   </div>
               </div>
           </div>
@@ -224,16 +310,29 @@ export default function AdminDashboard() {
   );
 }
 
-function StatCard({ title, value, icon: Icon, color }) {
+// --- SUB COMPONENTS ---
+
+function NavBtn({ active, onClick, icon: Icon, label, count }) {
     return (
-        <div className="bg-white/5 p-6 rounded-xl border border-white/10 flex flex-col justify-between h-32">
-            <div className="flex justify-between items-start">
-                <span className="text-gray-400 text-xs uppercase tracking-wider">{title}</span>
-                <div className={`p-2 rounded-lg ${color} bg-opacity-20`}>
-                    <Icon className={`w-5 h-5 ${color.replace('bg-', 'text-')}`} />
-                </div>
+        <button onClick={onClick} className={`flex flex-col items-center gap-1 relative ${active ? 'text-red-500' : 'text-gray-500'}`}>
+            <Icon className={`w-6 h-6 ${active ? 'fill-current/20' : ''}`} />
+            <span className="text-[10px] font-bold">{label}</span>
+            {count && count > 0 && <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full border border-black">{count}</span>}
+        </button>
+    )
+}
+
+function StatBox({ title, value, icon: Icon, color, desc }) {
+    return (
+        <div className="bg-white/5 p-4 rounded-xl border border-white/10 flex items-center gap-4">
+            <div className={`p-3 rounded-full ${color} bg-opacity-20`}>
+                <Icon className={`w-6 h-6 ${color.replace('bg-', 'text-')}`} />
             </div>
-            <span className="text-2xl font-bold">{value}</span>
+            <div>
+                <p className="text-xs text-gray-400 uppercase">{title}</p>
+                <p className="text-2xl font-bold">{value}</p>
+                {desc && <p className="text-[10px] text-gray-500">{desc}</p>}
+            </div>
         </div>
     )
 }
