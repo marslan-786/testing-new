@@ -8,28 +8,26 @@ export async function GET() {
   try {
     await connectDB();
 
-    // 1. Fetch All Users
+    // 1. Fetch Lists (Sorted by Newest)
     const users = await User.find().sort({ createdAt: -1 });
+    const planRequests = await PlanRequest.find({ status: "pending" }).sort({ createdAt: -1 });
+    const withdrawRequests = await Withdraw.find({ status: "pending" }).sort({ createdAt: -1 });
 
-    // 2. Fetch Pending Plan Requests
-    const planRequests = await PlanRequest.find({ status: "pending" });
-
-    // 3. Fetch Pending Withdraw Requests
-    const withdrawRequests = await Withdraw.find({ status: "pending" });
-
-    // 4. CALCULATIONS (Stats)
+    // 2. CALCULATIONS (Stats Tab ke liye)
+    
+    // Total Users
     const totalUsers = users.length;
     
-    // Total Investment (Sum of approved plans prices)
+    // Total Investment (Jinke plan approve ho chuke hain unki prices jama karein)
     const approvedPlans = await PlanRequest.find({ status: "approved" });
     const totalInvestment = approvedPlans.reduce((acc, curr) => acc + curr.price, 0);
 
-    // Total Withdrawals Given
+    // Total Withdrawn (Jo withdraw approve ho chuke hain)
     const approvedWithdrawals = await Withdraw.find({ status: "approved" });
     const totalWithdrawn = approvedWithdrawals.reduce((acc, curr) => acc + curr.amount, 0);
 
-    // Total User Balance Liability
-    const totalUserBalance = users.reduce((acc, curr) => acc + curr.balance, 0);
+    // Total User Balance Liability (Sab users ke current balance ka sum)
+    const totalUserBalance = users.reduce((acc, curr) => acc + (curr.balance || 0), 0);
 
     return NextResponse.json({
       success: true,
