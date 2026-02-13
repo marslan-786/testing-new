@@ -50,8 +50,16 @@ export default function PaymentPage({ params }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!trxId) return toast.error("Please enter Trx ID");
-    // Note: Asal project mein image upload logic (Cloudinary) yahan hogi.
-    // Abhi hum image ka naam bhej rahe hain database mein.
+
+    // --- CRITICAL SAFETY CHECK ---
+    // Agar user login hai lekin email save nahi hui to error se bachein
+    if (!user || !user.email) {
+      toast.error("Session expired or Email missing. Please Login again.");
+      // Logout karwa ke login bhej dein taake fresh data aaye
+      localStorage.removeItem("user");
+      router.push("/login");
+      return;
+    }
     
     setLoading(true);
 
@@ -60,7 +68,7 @@ export default function PaymentPage({ params }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: user.email, // Identify user by email
+          userId: user.email, // Ab ye check hone ke baad jayega
           username: user.username,
           planId: planId,
           planName: planName,
