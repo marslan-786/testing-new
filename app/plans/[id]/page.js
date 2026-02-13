@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Copy, UploadCloud, Loader2, CheckCircle } from "lucide-react";
 import toast from "react-hot-toast";
@@ -9,16 +9,28 @@ export default function PaymentPage({ params }) {
   const searchParams = useSearchParams();
   const planName = searchParams.get("name");
   const planPrice = searchParams.get("price");
+  const planId = params.id; // URL se ID uthayega (starter, pro, etc)
 
   const [loading, setLoading] = useState(false);
   const [image, setImage] = useState(null);
   const [trxId, setTrxId] = useState("");
+  const [user, setUser] = useState(null);
 
-  // --- ADMIN ACCOUNT DETAILS (Fake for now) ---
+  // Load User Info
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    } else {
+      router.push("/login");
+    }
+  }, []);
+
+  // Admin Info
   const adminAccount = {
     bank: "SadaPay",
-    name: "Muhammad Ali", // Fake Name
-    number: "0300 1234567", // Fake Number
+    name: "Muhammad Ali",
+    number: "0300 1234567",
     logo: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT5LY00sKvg1smaAPky_8r3NWoc7xrhDjIfhy1CwD8eRg&s=10"
   };
 
@@ -30,40 +42,61 @@ export default function PaymentPage({ params }) {
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setImage(file); // In real app, upload to Cloudinary/Firebase here
+      setImage(file);
       toast.success("Screenshot Selected!");
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!image || !trxId) return toast.error("Please provide Trx ID & Screenshot");
+    if (!trxId) return toast.error("Please enter Trx ID");
+    // Note: Asal project mein image upload logic (Cloudinary) yahan hogi.
+    // Abhi hum image ka naam bhej rahe hain database mein.
     
     setLoading(true);
 
-    // Simulate API Call
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/plans/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.email, // Identify user by email
+          username: user.username,
+          planId: planId,
+          planName: planName,
+          price: planPrice,
+          trxId: trxId,
+          screenshot: image ? image.name : "no-image.jpg" 
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        toast.success("Request Submitted Successfully!");
+        router.push("/plans"); // Wapis Plans page pe bhejo
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      toast.error("Submission Failed");
+    } finally {
       setLoading(false);
-      // Save Pending Status to LocalStorage (Temporary) or DB
-      const pendingPlan = { name: planName, price: planPrice, status: "pending", date: new Date().toISOString() };
-      localStorage.setItem("pendingPlan", JSON.stringify(pendingPlan));
-      
-      toast.success("Request Submitted! Waiting for Approval.");
-      router.push("/plans"); // Back to Plans Page
-    }, 2000);
+    }
   };
+
+  if (!user) return null;
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-5 pb-24">
-        {/* Header */}
         <button onClick={() => router.back()} className="flex items-center gap-2 text-gray-400 mb-6">
             <ArrowLeft className="w-4 h-4" /> Back
         </button>
         
         <h1 className="text-2xl font-bold mb-2">Activate {planName}</h1>
-        <p className="text-gray-400 text-xs mb-6">Send <span className="text-green-400 font-bold">Rs. {planPrice}</span> to the account below</p>
+        <p className="text-gray-400 text-xs mb-6">Send <span className="text-green-400 font-bold">Rs. {planPrice}</span> to account below</p>
 
-        {/* Admin Account Card */}
+        {/* Account Details Card */}
         <div className="bg-gradient-to-r from-teal-900/40 to-black border border-teal-500/30 p-6 rounded-2xl mb-8 flex flex-col items-center text-center relative overflow-hidden">
             <img src={adminAccount.logo} className="w-16 h-16 rounded-full mb-3 border-2 border-white/10" />
             <h2 className="text-xl font-bold">{adminAccount.bank}</h2>
@@ -76,10 +109,8 @@ export default function PaymentPage({ params }) {
             <p className="text-[10px] text-gray-500 mt-2">Tap copy icon to copy number</p>
         </div>
 
-        {/* Proof Submission Form */}
+        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
-            
-            {/* Trx ID Input */}
             <div>
                 <label className="text-xs text-gray-500 ml-2 mb-1 block">Transaction ID (Trx ID)</label>
                 <input 
@@ -90,7 +121,6 @@ export default function PaymentPage({ params }) {
                 />
             </div>
 
-            {/* Screenshot Upload */}
             <div>
                 <label className="text-xs text-gray-500 ml-2 mb-1 block">Payment Screenshot</label>
                 <label className="w-full h-32 bg-white/5 border-2 border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-purple-500/50 transition-all">
