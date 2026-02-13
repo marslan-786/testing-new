@@ -1,63 +1,57 @@
 "use client";
 import { motion } from "framer-motion";
-import { CheckCircle, Crown, Shield, Zap, Users, Star } from "lucide-react";
-import toast from "react-hot-toast";
+import { CheckCircle, Crown, Shield, Zap, ArrowRight } from "lucide-react";
+import Link from "next/link";
 
 export default function Plans() {
 
   const plans = [
     {
-      id: 1,
+      id: "starter", // Unique ID for URL
       name: "Student Plan",
       price: 500,
-      limit: "2,500", // Max Earning Limit
+      totalEarning: "2,500", // Total Earning Potential
       icon: Shield,
       color: "from-gray-800 to-gray-900",
       border: "border-gray-600",
-      // Only Referral & VIP features
       features: [
-        { text: "Direct Bonus: Rs. 150", highlight: true },
-        { text: "Indirect Bonus: Rs. 40", highlight: false },
-        { text: "Withdraw Limit: Rs. 2,500", highlight: false },
-        { text: "Standard Support", highlight: false }
+        "Low Investment",
+        "Total Income: Rs. 2,500",
+        "Direct & Indirect Rewards",
+        "Standard Support"
       ]
     },
     {
-      id: 2,
+      id: "pro",
       name: "Professional",
       price: 1000,
-      limit: "10,000",
+      totalEarning: "10,000",
       icon: Zap,
       color: "from-blue-900 to-blue-800",
       border: "border-blue-500",
       features: [
-        { text: "Direct Bonus: Rs. 350", highlight: true },
-        { text: "Indirect Bonus: Rs. 80", highlight: false },
-        { text: "Withdraw Limit: Rs. 10,000", highlight: false },
-        { text: "Fast Withdrawal Approval", highlight: true }
+        "Moderate Investment",
+        "Total Income: Rs. 10,000",
+        "High Networking Bonus",
+        "Fast Withdrawals"
       ]
     },
     {
-      id: 3,
+      id: "vip",
       name: "StoreX VIP",
       price: 2000,
-      limit: "Unlimited",
+      totalEarning: "Unlimited",
       icon: Crown,
       color: "from-yellow-700 to-yellow-900",
       border: "border-yellow-500",
       features: [
-        { text: "Direct Bonus: Rs. 800", highlight: true },
-        { text: "Indirect Bonus: Rs. 200", highlight: false },
-        { text: "No Withdrawal Limits", highlight: true },
-        { text: "Instant Priority Support", highlight: true },
-        { text: "Premium Badge", highlight: false }
+        "Maximum Earnings",
+        "No Income Limit",
+        "Priority Support",
+        "Premium Badge"
       ]
     }
   ];
-
-  const handleSubscribe = (planName) => {
-    toast.success(`Request for ${planName} Plan Sent!`);
-  };
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-5 pb-24">
@@ -93,27 +87,28 @@ export default function Plans() {
                 </div>
             </div>
 
+            {/* Total Earning Highlight */}
+            <div className="bg-black/30 rounded-lg p-3 mb-4 border border-white/5 text-center flex justify-between items-center px-4">
+                <p className="text-xs text-gray-300">Total Earning Potential</p>
+                <p className="text-lg font-bold text-green-400">{plan.totalEarning === "Unlimited" ? "Unlimited" : `Rs. ${plan.totalEarning}`}</p>
+            </div>
+
             {/* Features List */}
-            <div className="space-y-3 mb-6 bg-black/20 p-4 rounded-xl border border-white/5">
+            <div className="space-y-2 mb-6">
                 {plan.features.map((feature, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                        {feature.highlight ? 
-                            <Star className="text-yellow-400 w-4 h-4 fill-yellow-400" /> : 
-                            <CheckCircle className="text-green-400 w-4 h-4" />
-                        }
-                        <span className={`text-xs ${feature.highlight ? "text-white font-bold" : "text-gray-300"}`}>
-                            {feature.text}
-                        </span>
+                    <div key={i} className="flex items-center gap-2">
+                        <CheckCircle className="text-green-400 w-4 h-4" />
+                        <span className="text-xs text-gray-200">{feature}</span>
                     </div>
                 ))}
             </div>
 
-            <button 
-                onClick={() => handleSubscribe(plan.name)}
-                className="w-full py-3 bg-white text-black font-bold rounded-xl shadow-lg hover:scale-[1.02] transition-all text-sm flex items-center justify-center gap-2"
-            >
-                Activate Now <Users className="w-4 h-4" />
-            </button>
+            {/* Link to Dynamic Payment Page */}
+            <Link href={`/plans/${plan.id}?price=${plan.price}&name=${plan.name}`}>
+                <button className="w-full py-3 bg-white text-black font-bold rounded-xl shadow-lg hover:scale-[1.02] transition-all text-sm flex items-center justify-center gap-2">
+                    Activate Now <ArrowRight className="w-4 h-4" />
+                </button>
+            </Link>
 
           </motion.div>
         ))}
