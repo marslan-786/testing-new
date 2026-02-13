@@ -10,25 +10,53 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Check LocalStorage
-    const storedUser = localStorage.getItem("user");
-    
-    if (!storedUser) {
-      router.push("/login"); // Redirect if no user
-    } else {
-      setUser(JSON.parse(storedUser));
-      setLoading(false);
-    }
+    const fetchFreshData = async () => {
+      // 1. Get Email from LocalStorage to identify user
+      const storedUser = localStorage.getItem("user");
+      
+      if (!storedUser) {
+        router.push("/login"); 
+        return;
+      }
+      
+      const localData = JSON.parse(storedUser);
+      
+      try {
+        // 2. Fetch FULL Profile from DB (Balance, Plan, Team, etc.)
+        const res = await fetch(`/api/user/profile?email=${localData.email}`);
+        const data = await res.json();
+        
+        if (data.success) {
+          setUser(data.user);
+          // Keep LocalStorage updated
+          localStorage.setItem("user", JSON.stringify(data.user)); 
+        } else {
+          router.push("/login");
+        }
+      } catch (error) {
+        console.error("Failed to load dashboard");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFreshData();
   }, [router]);
 
-  // 2. Loading State (Crash se bachne ke liye)
-  if (loading || !user) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
         <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
       </div>
     );
   }
+
+  if (!user) return null;
+
+  // Calculations
+  const directTeamCount = user.directTeam ? user.directTeam.length : 0;
+  // Total Team (Direct + Indirect) - Direct = Indirect count
+  const indirectTeamCount = (user.teamCount || 0) - directTeamCount; 
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-5 pb-28 relative overflow-y-auto">
@@ -41,10 +69,17 @@ export default function Dashboard() {
             {user.name}
           </h1>
         </div>
-        <img src="/logo.png" className="w-14 h-14 drop-shadow-[0_0_15px_rgba(120,50,255,0.4)]" />
+        {/* Profile Pic Handling */}
+        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-600 to-blue-500 flex items-center justify-center font-bold text-xl overflow-hidden border-2 border-white/10 shadow-lg shadow-purple-500/20">
+           {user.profilePic ? (
+             <img src={user.profilePic} className="w-full h-full object-cover"/>
+           ) : (
+             user.name[0]
+           )}
+        </div>
       </div>
 
-      {/* 4 Stats Grid (VIP Style) */}
+      {/* 4 Stats Grid (Real Data from DB) */}
       <div className="grid grid-cols-2 gap-4 mb-8">
         
         {/* Box 1: Balance */}
@@ -58,7 +93,7 @@ export default function Dashboard() {
               <Wallet className="w-5 h-5 text-purple-400" />
             </div>
             <span className="text-[10px] text-gray-400 uppercase tracking-wider">Total Balance</span>
-            <span className="text-xl font-bold font-mono text-white mt-1">Rs{user.balance.toFixed(2)}</span>
+            <span className="text-xl font-bold font-mono text-white mt-1">Rs {user.balance.toFixed(2)}</span>
         </motion.div>
 
         {/* Box 2: Direct Referrals */}
@@ -72,7 +107,7 @@ export default function Dashboard() {
               <Users className="w-5 h-5 text-blue-400" />
             </div>
             <span className="text-[10px] text-gray-400 uppercase tracking-wider">Direct Team</span>
-            <span className="text-xl font-bold font-mono text-white mt-1">{user.referrals || 0}</span>
+            <span className="text-xl font-bold font-mono text-white mt-1">{directTeamCount}</span>
         </motion.div>
 
         {/* Box 3: Indirect Referrals */}
@@ -86,7 +121,7 @@ export default function Dashboard() {
               <Share2 className="w-5 h-5 text-pink-400" />
             </div>
             <span className="text-[10px] text-gray-400 uppercase tracking-wider">In-Direct Team</span>
-            <span className="text-xl font-bold font-mono text-white mt-1">0</span>
+            <span className="text-xl font-bold font-mono text-white mt-1">{indirectTeamCount < 0 ? 0 : indirectTeamCount}</span>
         </motion.div>
 
         {/* Box 4: Plan Status */}
@@ -94,14 +129,15 @@ export default function Dashboard() {
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ delay: 0.4 }}
-          className={`border p-4 rounded-2xl flex flex-col items-center justify-center text-center ${user.isPlanActive ? 'bg-green-900/10 border-green-500/30' : 'bg-red-900/10 border-red-500/30'}`}
+          className={`border p-4 rounded-2xl flex flex-col items-center justify-center text-center 
+            ${user.plan?.isActive ? 'bg-green-900/10 border-green-500/30' : 'bg-red-900/10 border-red-500/30'}`}
         >
-            <div className={`p-2 rounded-full mb-2 ${user.isPlanActive ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
-              <ShieldCheck className={`w-5 h-5 ${user.isPlanActive ? 'text-green-400' : 'text-red-400'}`} />
+            <div className={`p-2 rounded-full mb-2 ${user.plan?.isActive ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
+              <ShieldCheck className={`w-5 h-5 ${user.plan?.isActive ? 'text-green-400' : 'text-red-400'}`} />
             </div>
             <span className="text-[10px] text-gray-400 uppercase tracking-wider">Plan Status</span>
-            <span className={`text-sm font-bold mt-1 ${user.isPlanActive ? 'text-green-400' : 'text-red-400'}`}>
-                {user.isPlanActive ? 'Active' : 'Inactive'}
+            <span className={`text-sm font-bold mt-1 ${user.plan?.isActive ? 'text-green-400' : 'text-red-400'}`}>
+                {user.plan?.isActive ? user.plan.planName : 'Inactive'}
             </span>
         </motion.div>
       </div>
@@ -116,10 +152,11 @@ export default function Dashboard() {
         {/* Small Center Logo */}
         <img src="/logo.png" className="w-16 opacity-30 grayscale" />
         
-        {/* Ad Banner Placeholder */}
-        <div className="w-full h-36 bg-gradient-to-r from-gray-900 to-black border border-dashed border-white/20 rounded-2xl flex flex-col items-center justify-center text-gray-600 gap-2 group cursor-pointer hover:border-purple-500/30 transition-all">
-          <span className="text-xs font-mono group-hover:text-purple-400 transition-colors">[ Advertisement Banner Space ]</span>
-          <span className="text-[10px] bg-white/5 px-2 py-1 rounded">1080 x 300px</span>
+        {/* Ad Banner Placeholder - Public folder mein banner.png rakhna */}
+        <div className="w-full h-36 bg-gradient-to-r from-gray-900 to-black border border-dashed border-white/20 rounded-2xl flex flex-col items-center justify-center text-gray-600 gap-2 group cursor-pointer hover:border-purple-500/30 transition-all overflow-hidden">
+           {/* Agar picture ho to yahan img tag laga dein */}
+           <span className="text-xs font-mono group-hover:text-purple-400 transition-colors">[ Banner Ad Space ]</span>
+           <span className="text-[10px] bg-white/5 px-2 py-1 rounded">1080 x 300px</span>
         </div>
       </motion.div>
 
