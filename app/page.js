@@ -58,7 +58,7 @@ export default function Dashboard() {
               <Wallet className="w-5 h-5 text-purple-400" />
             </div>
             <span className="text-[10px] text-gray-400 uppercase tracking-wider">Total Balance</span>
-            <span className="text-xl font-bold font-mono text-white mt-1">${user.balance.toFixed(2)}</span>
+            <span className="text-xl font-bold font-mono text-white mt-1">Rs{user.balance.toFixed(2)}</span>
         </motion.div>
 
         {/* Box 2: Direct Referrals */}
