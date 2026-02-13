@@ -9,14 +9,16 @@ export default function PaymentPage({ params }) {
   const searchParams = useSearchParams();
   const planName = searchParams.get("name");
   const planPrice = searchParams.get("price");
-  const planId = params.id; // URL se ID uthayega (starter, pro, etc)
+  const planId = params.id; 
 
   const [loading, setLoading] = useState(false);
-  const [image, setImage] = useState(null);
   const [trxId, setTrxId] = useState("");
   const [user, setUser] = useState(null);
+  
+  // Image State
+  const [preview, setPreview] = useState(null); // Dikhane ke liye
+  const [imageBase64, setImageBase64] = useState(""); // Database bhejne ke liye
 
-  // Load User Info
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
@@ -26,7 +28,6 @@ export default function PaymentPage({ params }) {
     }
   }, []);
 
-  // Admin Info
   const adminAccount = {
     bank: "SadaPay",
     name: "Muhammad Ali",
@@ -39,23 +40,29 @@ export default function PaymentPage({ params }) {
     toast.success("Account Number Copied!");
   };
 
+  // --- NEW: IMAGE CONVERTER ---
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setImage(file);
-      toast.success("Screenshot Selected!");
+      // 1. Show Preview
+      setPreview(URL.createObjectURL(file));
+
+      // 2. Convert to Base64 for Database
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onloadend = () => {
+        setImageBase64(reader.result); // Ye puri picture string ban gayi
+      };
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!trxId) return toast.error("Please enter Trx ID");
+    if (!imageBase64) return toast.error("Please upload screenshot");
 
-    // --- CRITICAL SAFETY CHECK ---
-    // Agar user login hai lekin email save nahi hui to error se bachein
     if (!user || !user.email) {
-      toast.error("Session expired or Email missing. Please Login again.");
-      // Logout karwa ke login bhej dein taake fresh data aaye
+      toast.error("Session expired. Please Login again.");
       localStorage.removeItem("user");
       router.push("/login");
       return;
@@ -68,13 +75,13 @@ export default function PaymentPage({ params }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: user.email, // Ab ye check hone ke baad jayega
+          userId: user.email, 
           username: user.username,
           planId: planId,
           planName: planName,
           price: planPrice,
           trxId: trxId,
-          screenshot: image ? image.name : "no-image.jpg" 
+          screenshot: imageBase64 // Ab asli photo jayegi
         }),
       });
 
@@ -82,7 +89,7 @@ export default function PaymentPage({ params }) {
 
       if (res.ok) {
         toast.success("Request Submitted Successfully!");
-        router.push("/plans"); // Wapis Plans page pe bhejo
+        router.push("/plans"); 
       } else {
         toast.error(data.message);
       }
@@ -104,7 +111,6 @@ export default function PaymentPage({ params }) {
         <h1 className="text-2xl font-bold mb-2">Activate {planName}</h1>
         <p className="text-gray-400 text-xs mb-6">Send <span className="text-green-400 font-bold">Rs. {planPrice}</span> to account below</p>
 
-        {/* Account Details Card */}
         <div className="bg-gradient-to-r from-teal-900/40 to-black border border-teal-500/30 p-6 rounded-2xl mb-8 flex flex-col items-center text-center relative overflow-hidden">
             <img src={adminAccount.logo} className="w-16 h-16 rounded-full mb-3 border-2 border-white/10" />
             <h2 className="text-xl font-bold">{adminAccount.bank}</h2>
@@ -117,7 +123,6 @@ export default function PaymentPage({ params }) {
             <p className="text-[10px] text-gray-500 mt-2">Tap copy icon to copy number</p>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
             <div>
                 <label className="text-xs text-gray-500 ml-2 mb-1 block">Transaction ID (Trx ID)</label>
@@ -131,18 +136,18 @@ export default function PaymentPage({ params }) {
 
             <div>
                 <label className="text-xs text-gray-500 ml-2 mb-1 block">Payment Screenshot</label>
-                <label className="w-full h-32 bg-white/5 border-2 border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-purple-500/50 transition-all">
-                    {image ? (
-                        <div className="flex flex-col items-center text-green-400">
-                            <CheckCircle className="w-8 h-8 mb-2" />
-                            <span className="text-xs">{image.name.substring(0, 20)}...</span>
-                        </div>
+                <label className="w-full h-40 bg-white/5 border-2 border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-purple-500/50 transition-all overflow-hidden relative">
+                    
+                    {/* Agar Preview hai to photo dikhao, warna upload icon */}
+                    {preview ? (
+                        <img src={preview} className="absolute inset-0 w-full h-full object-cover" />
                     ) : (
                         <div className="flex flex-col items-center text-gray-500">
                             <UploadCloud className="w-8 h-8 mb-2" />
-                            <span className="text-xs">Tap to Upload</span>
+                            <span className="text-xs">Tap to Upload Proof</span>
                         </div>
                     )}
+                    
                     <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
                 </label>
             </div>
