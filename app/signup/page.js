@@ -62,7 +62,7 @@ export default function Signup() {
         transition={{ duration: 0.8 }}
         src="/logo.png" 
         alt="StoreX Logo" 
-        className="w-48 mb-8 drop-shadow-[0_0_15px_rgba(120,50,255,0.5)]"
+        className="w-80 mb-8 drop-shadow-[0_0_15px_rgba(120,50,255,0.5)]"
       />
 
       {/* Signup Card */}
